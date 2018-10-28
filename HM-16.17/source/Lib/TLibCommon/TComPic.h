@@ -76,6 +76,7 @@ private:
 
   Bool                  m_isTop;
   Bool                  m_isField;
+  UInt                  m_iTotalBits;
 
   std::vector<std::vector<TComDataCU*> > m_vSliceCUDataLink;
 
@@ -97,7 +98,9 @@ public:
 #endif
 
   virtual Void  destroy();
-
+  void          setBits(UInt iBits)             {m_iTotalBits = iBits;}
+  void          updateBits(UInt iBits)          {m_iTotalBits += iBits;}
+  UInt          getBits()                       {return m_iTotalBits;}
   UInt          getTLayer() const               { return m_uiTLayer;   }
   Void          setTLayer( UInt uiTLayer ) { m_uiTLayer = uiTLayer; }
 

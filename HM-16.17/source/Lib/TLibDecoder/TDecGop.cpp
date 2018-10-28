@@ -116,10 +116,17 @@ Void TDecGop::decompressSlice(TComInputBitstream* pcBitstream, TComPic* pcPic)
 
   // init each couple {EntropyDecoder, Substream}
   ppcSubstreams    = new TComInputBitstream*[uiNumSubstreams];
+ UInt iTotalBits = 0, iSubBits = 0;
+  pcPic->setBits(0);
   for ( UInt ui = 0 ; ui < uiNumSubstreams ; ui++ )
   {
+      iSubBits = ui+1 < uiNumSubstreams ? (pcSlice->getSubstreamSize(ui)<<3) : pcBitstream->getNumBitsLeft();
+      iTotalBits += iSubBits;
+      pcPic->updateBits(iSubBits);
+//      printf("     uiNumSubstreams=%3d. iBits=%8d, iTotalBits=%8d\n", uiNumSubstreams, iSubBits, pcPic->getBits());
     ppcSubstreams[ui] = pcBitstream->extractSubstream(ui+1 < uiNumSubstreams ? (pcSlice->getSubstreamSize(ui)<<3) : pcBitstream->getNumBitsLeft());
   }
+  //pcPic->setBits(iTotalBits);
 
   m_pcSliceDecoder->decompressSlice( ppcSubstreams, pcPic, m_pcSbacDecoder);
   // deallocate all created substreams, including internal buffers.
@@ -159,10 +166,11 @@ Void TDecGop::filterPicture(TComPic* pcPic)
   }
 
   //-- For time output for each slice
-  printf("POC %4d TId: %1d ( %c-SLICE, QP%3d ) ", pcSlice->getPOC(),
+  printf("POC %4d TId: %1d ( %c-SLICE, QP%3d, Bits %8d,) ", pcSlice->getPOC(),
                                                   pcSlice->getTLayer(),
                                                   c,
-                                                  pcSlice->getSliceQp() );
+                                                  pcSlice->getSliceQp(),
+                                                  pcPic->getBits());
 
   m_dDecTime += (Double)(clock()-iBeforeTime) / CLOCKS_PER_SEC;
   printf ("[DT %6.3f] ", m_dDecTime );
