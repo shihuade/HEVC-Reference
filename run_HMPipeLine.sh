@@ -3,17 +3,44 @@
 runUsage()
 {
     echo -e "\033[31m ***************************************** \033[0m"
-    echo " Usage:                                              "
-    echo "      $0  \$InputYUV                                 "
+    echo " Usage:                                                "
+    echo "      $0  \$InputYUV  \$CfgFile  \$EncParam            "
+    echo "                                                       "
+    echo "          \$CfgFile   pattern or cfg file name         "
+    echo "          \$EncParam  optional enc param               "
+    echo "                                                       "
+    echo "     example:  $0  xx_scc_1920x1080_30fps scc \"-aq 1\""
     echo -e "\033[31m ***************************************** \033[0m"
 }
 
 runInit()
 {
+    CurDir=`pwd`
     ScriptYUVInfo="./run_ParseYUVInfo.sh"
+    BinDir="./bin"
+    CfgDir="./cfg"
+    BitStreamDir="./BitStream"
+
+    mkdir -p ${BinDir}
+    mkdir -p ${BitStreamDir}
+
+    HMBuildDir="${CurDir}/HM-16.19+SCM/build/linux"
+    HMBinDir="${CurDir}/HM-16.19+SCM/bin"
+    HMDecoder="HMDecoder"
+    HMEncoder="HMEncoder"
+    Suffix="HMDec"
+
+    aCfgList=("encoder_intra_high_throughput_rext.cfg" "encoder_intra_main_scc.cfg"\
+              "encoder_lowdelay_main10.cfg"     "encoder_randomaccess_main10.cfg"\
+              "encoder_intra_main.cfg"          "encoder_lowdelay_P_main.cfg"\
+              "encoder_lowdelay_main_rext.cfg"  "encoder_randomaccess_main_rext.cfg"\
+              "encoder_intra_main10.cfg"        "encoder_lowdelay_P_main10.cfg" \
+              "encoder_lowdelay_main_scc.cfg"   "encoder_randomaccess_main_scc.cfg"\
+              "encoder_intra_main_rext.cfg"     "encoder_lowdelay_main.cfg"\
+              "encoder_randomaccess_main.cfg")
 }
 
-runInitHMEncParams()
+runInitHMParams()
 {
     HMEncoder="HMEncoder"
     Profile="main"
@@ -21,16 +48,33 @@ runInitHMEncParams()
     YUVWidth="1280"
     YUVHeight="720"
     FrameRate="30"
-    FramNum="1000"
+    FramNum="10000"
 
     Suffix="HMEnc"
     HMEncCfgFile="./HMConfigure/encoder_lowdelay_main.cfg"
 }
 
-runInitHMDecParams()
+runBuildHM()
 {
-    HMDecoder="HMDecoder"
-    Suffix="HMDec"
+    echo -e "\033[32m ****************************************************** \033[0m"
+    echo -e "\033[32m    start to build HM                                   \033[0m"
+    echo -e "\033[32m ****************************************************** \033[0m"
+
+    cd ${HMBuildDir}
+    make clean
+    make
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31m ****************************************************** \033[0m"
+        echo -e "\033[31m    HM build failed! pelease double check!              \033[0m"
+        echo -e "\033[31m ****************************************************** \033[0m"
+        exit 1
+    fi
+
+    mkdir -p ${BinDir}
+    cp -f "${HMBinDir}/TAppDecoderStatic"  "${BinDir}/${HMDecoder}"
+    cp -f "${HMBinDir}/TAppEncoderStatic"  "${BinDir}/${HMEncoder}"
+
+    cd -
 }
 
 runPromptHMEnc()
@@ -48,7 +92,7 @@ runPromptHMEnc()
 runPromptHMDec()
 {
     echo -e "\033[32m ****************************************************** \033[0m"
-    echo -e "\033[32m InputBitStream   is : $InputBitStream                    \033[0m"
+    echo -e "\033[32m InputBitStream  is : $InputBitStream                    \033[0m"
     echo -e "\033[32m OutputYUV       is : $OutputYUV                        \033[0m"
     echo -e "\033[32m HMDecOption     is : $HMDecOption                      \033[0m"
     echo -e "\033[32m HMDecCMD        is : $HMDecCMD                         \033[0m"
@@ -57,28 +101,30 @@ runPromptHMDec()
 
 runParseYUVFileInfo()
 {
-    YUVInfo=(`${ScriptYUVInfo} ${YUVFile}`)
+    YUVInfo=(`${ScriptYUVInfo} ${InputYUV}`)
     YUVWidth="${YUVInfo[0]}"
     YUVHeight="${YUVInfo[1]}"
     FrameRate="${YUVInfo[2]}"
-
     [ -z "${FrameRate}" ] && FrameRate="30"
+
+    YUVName=`basename ${InputYUV}`
 }
 
 runEncodeWithHM()
 {
-
-    ReconstructYUV="${OutputBitStream}_rec.yuv"
-
     HMEncOption="-c ${HMEncCfgFile} -wdt ${YUVWidth}  -hgt ${YUVHeight} -fr ${FrameRate} -f ${FramNum} "
-    #HMEncOptionPlus="--Profile ${Profile} --Level ${Level}"
-    HMEncOptionPlus=" --Level ${Level}"
-    HMEncCMD="${HMEncoder}  -i ${InputYUV} ${HMEncOption} ${HMEncOptionPlus} -b ${OutputBitStream} -o ${ReconstructYUV} "
+    HMEncOptionPlus="${EncParam}"
+    HMEncCMD="${BinDir}/${HMEncoder}  -i ${InputYUV} ${HMEncOption} ${HMEncOptionPlus} -b ${OutputBitStream}"
 
     runPromptHMEnc
 
     #encode with HM encoder
-    ${HMEncCMD}
+${HMEncCMD}
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31m ****************************************************** \033[0m"
+        echo -e "\033[31m HM encode failed! please double check!                 \033[0m"
+        echo -e "\033[31m ****************************************************** \033[0m"
+    fi
 }
 
 runDecodeWithHM()
@@ -91,23 +137,28 @@ runDecodeWithHM()
     ${HMDecCMD}
 }
 
-runH265ToMP4()
+runHMEncAllCfg()
 {
-    OutputMp4="${InputBitStream}.mp4"
-    FFCommand="ffmpeg -i ${InputBitStream} -framerate ${FrameRate} -c copy  -bsf:v hevc_mp4toannexb -y ${OutputMp4}"
+    for cfg in ${aCfgList[@]}
+    do
+        beMatch=`echo $cfg | grep ${CfgFile}`
+        if [ "${beMatch}X" = "X" ];then
+            continue
+        fi
 
-    echo -e "\033[32m ************************************************ \033[0m"
-    echo -e "\033[32m OutputMp4 is : $OutputMp4                        \033[0m"
-    echo -e "\033[32m FFCommand is : $FFCommand                        \033[0m"
-    echo -e "\033[32m ************************************************ \033[0m"
+        echo -e "\033[34m encode with cfg file: $cfg \033[0m"
+        Label=`basename $cfg | awk 'BEGIN {FS=".cfg"} {print $1}'`
+        HMEncCfgFile="${CfgDir}/${cfg}"
 
-    ${FFCommand}
+        OutputBitStream="${BitStreamDir}/${YUVName}_${Suffix}_${Label}.265"
+        runEncodeWithHM
+    done
 }
 
 runCheck()
 {
-    if [ ! -e ${YUVFile} ];then
-        echo -e "\033[31m YUVFile not exist, please double check! \033[0m"
+    if [ ! -e ${InputYUV} ];then
+        echo -e "\033[31m InputYUV not exist, please double check! \033[0m"
         exit 1
     fi
 }
@@ -115,33 +166,24 @@ runCheck()
 runMain()
 {
     runInit
-
-    #HM encoder
-    InputYUV="${YUVFile}"
-    OutputBitStream="${InputYUV}_${Suffix}.265"
-    runInitHMEncParams
+    runInitHMParams
+    runCheck
     runParseYUVFileInfo
-    runEncodeWithHM
 
-    #HM decoder
-    runInitHMDecParams
-    InputBitStream="${OutputBitStream}"
-    OutputYUV="${InputBitStream}_${Suffix}.yuv"
-    runDecodeWithHM
-
-    runH265ToMP4
+    runBuildHM
+    runHMEncAllCfg
 }
 
 #****************************************************************
-#YUVFile="../../../YUV/RaceHorses_832x480_30.yuv"
-#BitStream="../../../YUV/RaceHorses_832x480_30.yuv_HMEnc.265"
-#****************************************************************
-if [ $# -lt 1 ];then
+if [ $# -lt 2 ];then
     runUsage
     exit 1
 fi
 
-YUVFile=$1
+InputYUV=$1
+CfgFile=$2
+EncParam=$3
+
 runMain
 
 
