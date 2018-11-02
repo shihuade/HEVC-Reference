@@ -4,12 +4,13 @@ runUsage()
 {
     echo -e "\033[31m ***************************************** \033[0m"
     echo " Usage:                                                "
-    echo "      $0  \$InputYUV  \$CfgFile  \$EncParam            "
+    echo "      $0  \$InputYUV  \$CfgFile \$Label  \$EncParam    "
     echo "                                                       "
     echo "          \$CfgFile   pattern or cfg file name         "
     echo "          \$EncParam  optional enc param               "
     echo "                                                       "
-    echo "     example:  $0  xx_scc_1920x1080_30fps scc \"-aq 1\""
+    echo "     example:  $0  xx_scc_1920x1080_30fps scc          "
+    echo "                   IBCOnly    \"-aq 1\"                "
     echo -e "\033[31m ***************************************** \033[0m"
 }
 
@@ -54,29 +55,6 @@ runInitHMParams()
     HMEncCfgFile="./HMConfigure/encoder_lowdelay_main.cfg"
 }
 
-runBuildHM()
-{
-    echo -e "\033[32m ****************************************************** \033[0m"
-    echo -e "\033[32m    start to build HM                                   \033[0m"
-    echo -e "\033[32m ****************************************************** \033[0m"
-
-    cd ${HMBuildDir}
-    make clean
-    make
-    if [ $? -ne 0 ]; then
-        echo -e "\033[31m ****************************************************** \033[0m"
-        echo -e "\033[31m    HM build failed! pelease double check!              \033[0m"
-        echo -e "\033[31m ****************************************************** \033[0m"
-        exit 1
-    fi
-
-    mkdir -p ${BinDir}
-    cp -f "${HMBinDir}/TAppDecoderStatic"  "${BinDir}/${HMDecoder}"
-    cp -f "${HMBinDir}/TAppEncoderStatic"  "${BinDir}/${HMEncoder}"
-
-    cd -
-}
-
 runPromptHMEnc()
 {
     echo -e "\033[32m ****************************************************** \033[0m"
@@ -119,7 +97,7 @@ runEncodeWithHM()
     runPromptHMEnc
 
     #encode with HM encoder
-${HMEncCMD}
+    ${HMEncCMD}
     if [ $? -ne 0 ]; then
         echo -e "\033[31m ****************************************************** \033[0m"
         echo -e "\033[31m HM encode failed! please double check!                 \033[0m"
@@ -147,12 +125,16 @@ runHMEncAllCfg()
         fi
 
         echo -e "\033[34m encode with cfg file: $cfg \033[0m"
-        Label=`basename $cfg | awk 'BEGIN {FS=".cfg"} {print $1}'`
+        CfgLabel=`basename $cfg | awk 'BEGIN {FS=".cfg"} {print $1}'`
         HMEncCfgFile="${CfgDir}/${cfg}"
 
-        OutputBitStream="${BitStreamDir}/${YUVName}_${Suffix}_${Label}.265"
+        OutputBitStream="${BitStreamDir}/${YUVName}_${Suffix}_${CfgLabel}_${Label}.265"
         runEncodeWithHM
     done
+    echo -e "\033[32m ****************************************************** \033[0m"
+    echo -e "\033[32m              Completed!                                \033[0m"
+    echo -e "\033[34m  All bitstream can be found under ${BitStreamDir}      \033[0m"
+    echo -e "\033[32m ****************************************************** \033[0m"
 }
 
 runCheck()
@@ -170,19 +152,19 @@ runMain()
     runCheck
     runParseYUVFileInfo
 
-    runBuildHM
     runHMEncAllCfg
 }
 
 #****************************************************************
-if [ $# -lt 2 ];then
+if [ $# -lt 3 ];then
     runUsage
     exit 1
 fi
 
 InputYUV=$1
 CfgFile=$2
-EncParam=$3
+Label=$3
+EncParam=$4
 
 runMain
 
