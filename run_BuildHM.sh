@@ -27,12 +27,11 @@ runBuildHM()
         echo -e "\033[31m ****************************************************** \033[0m"
         exit 1
     fi
-
+    cd -
+    
     mkdir -p ${BinDir}
     cp -f "${HMBinDir}/TAppDecoderStatic"  "${BinDir}/${HMDecoder}"
     cp -f "${HMBinDir}/TAppEncoderStatic"  "${BinDir}/${HMEncoder}"
-
-    cd -
 }
 
 runMain()
