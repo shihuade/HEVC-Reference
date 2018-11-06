@@ -49,7 +49,7 @@ runInitHMParams()
     YUVWidth="1280"
     YUVHeight="720"
     FrameRate="30"
-    FramNum="10000"
+    FramNum="300"
 
     Suffix="HMEnc"
     HMEncCfgFile="./HMConfigure/encoder_lowdelay_main.cfg"
